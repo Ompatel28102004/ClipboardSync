@@ -151,21 +151,7 @@
   <body>
     <div class="container">
       <h2>📋 Clipboard Sync</h2>
-      <div class="shortcut-note">
-        <p>📝 Paste Shortcuts:</p>
-        <ul>
-          <li>
-            Use <kbd>Ctrl</kbd> + <kbd>V</kbd> to paste queue items within this
-            app
-          </li>
-          <li>
-            Use <kbd>Ctrl</kbd> + <kbd>V</kbd> to paste & move to next item in
-            the queue <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>V</kbd> in other
-            apps
-            <br />
-          </li>
-        </ul>
-      </div>
+      
       <div class="input-group">
         <input type="text" id="textInput" placeholder="Type something here" />
       </div>
@@ -174,11 +160,6 @@
         <button id="historyBtn" onclick="toggleHistory()">
           View copied content
         </button>
-        <button id="startQueueBtn" onclick="startQueue()">Start Queue</button>
-        <button id="pasteQueueBtn" onclick="pasteQueue()" disabled>
-          Paste Queue
-        </button>
-        <button id="clearQueueBtn" onclick="clearQueue()">Clear Queue</button>
         <button
           onclick="resetContent()"
           style="background-color: #ff4444; color: white"
@@ -188,10 +169,6 @@
       </div>
       <p id="queueStatus" style="color: #666; font-size: 14px"></p>
       <p id="status">🔃 Connecting...</p>
-      <div id="queueSection" class="scroll-view" style="display: none">
-        <h3 class="history-header">Queue Items</h3>
-        <div id="queueItems"></div>
-      </div>
       <div id="historySection" class="scroll-view" style="display: none">
         <h3 class="history-header">Copied History:</h3>
         <div id="historyItems"></div>

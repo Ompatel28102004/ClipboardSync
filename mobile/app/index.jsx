@@ -5,7 +5,6 @@ import {
   Button,
   TextInput,
   StyleSheet,
-  Image,
   ScrollView,
 } from "react-native";
 import * as Clipboard from "expo-clipboard";
@@ -15,55 +14,26 @@ export default function Index() {
   const [copiedItem, setCopiedItem] = useState(null);
   const [copiedHistory, setCopiedHistory] = useState([]);
   const [inputText, setInputText] = useState("");
-  const [imageUrl, setImageUrl] = useState(null);
   const [showHistory, setShowHistory] = useState(false);
-  const [clipboardType, setClipboardType] = useState("text");
   const [lastClipboardContent, setLastClipboardContent] = useState(null);
 
   const { socket } = useSocket();
 
-  // Monitor clipboard for new content
+  // Monitor clipboard for new text
   useEffect(() => {
     const checkClipboard = async () => {
       try {
-        if (await Clipboard.hasImageAsync()) {
-          const image = await Clipboard.getImageAsync({ format: "png", quality: 0.8 });
+        const text = await Clipboard.getStringAsync();
+        if (text && text !== lastClipboardContent) {
+          setCopiedItem(text);
+          setCopiedHistory((prev) => [
+            { content: text, timestamp: Date.now() },
+            ...prev,
+          ]);
+          setLastClipboardContent(text);
 
-          if (image?.data && image.data !== lastClipboardContent) {
-            let imageData = image.data;
-            if (!imageData.startsWith("data:image")) {
-              imageData = `data:image/png;base64,${imageData}`;
-            }
-
-            setClipboardType("image");
-            setCopiedItem(imageData);
-            setCopiedHistory((prev) => [
-              { type: "image", content: imageData, timestamp: Date.now() },
-              ...prev,
-            ]);
-            setLastClipboardContent(imageData);
-
-            if (socket) {
-              socket.emit("sendMessage", {
-                type: "image",
-                content: imageData,
-              });
-            }
-          }
-        } else {
-          const text = await Clipboard.getStringAsync();
-          if (text && text !== lastClipboardContent) {
-            setClipboardType("text");
-            setCopiedItem(text);
-            setCopiedHistory((prev) => [
-              { type: "text", content: text, timestamp: Date.now() },
-              ...prev,
-            ]);
-            setLastClipboardContent(text);
-
-            if (socket) {
-              socket.emit("sendMessage", { type: "text", content: text });
-            }
+          if (socket) {
+            socket.emit("sendMessage", { type: "text", content: text });
           }
         }
       } catch (error) {
@@ -75,62 +45,30 @@ export default function Index() {
     return () => clearInterval(intervalId);
   }, [lastClipboardContent, socket]);
 
-  // Handle incoming messages
+  // Receive text from other devices
   useEffect(() => {
-    if (socket) {
-      socket.on("receive-message", async (data) => {
-        console.log("Received from another device:", data);
+    if (!socket) return;
 
-        if (typeof data === "string") {
-          handleTextMessage(data);
-        } else if (data.type === "text") {
-          if (data.content !== lastClipboardContent) {
-            handleTextMessage(data.content);
-          }
-        } else if (data.type === "image") {
-          if (data.content !== lastClipboardContent) {
-            handleImageMessage(data.content);
-          }
-        }
-      });
+    const handler = (data) => {
+      console.log("Received from another device:", data);
+      const text = typeof data === "string" ? data : data.content;
+      if (text !== lastClipboardContent) {
+        handleIncomingText(text);
+      }
+    };
 
-      return () => {
-        socket.off("receive-message");
-      };
-    }
+    socket.on("receive-message", handler);
+    return () => socket.off("receive-message", handler);
   }, [socket, lastClipboardContent]);
 
-  const handleTextMessage = (text) => {
-    setClipboardType("text");
+  const handleIncomingText = async (text) => {
     setCopiedItem(text);
     setCopiedHistory((prev) => [
-      { type: "text", content: text, timestamp: Date.now() },
+      { content: text, timestamp: Date.now() },
       ...prev,
     ]);
     setLastClipboardContent(text);
-    Clipboard.setStringAsync(text);
-  };
-
-  const handleImageMessage = async (imageData) => {
-    try {
-      const base64Data = imageData.replace(/^data:image\/(png|jpeg);base64,/, "");
-
-      setClipboardType("image");
-      setCopiedItem(imageData);
-      setCopiedHistory((prev) => [
-        { type: "image", content: imageData, timestamp: Date.now() },
-        ...prev,
-      ]);
-      setImageUrl(imageData);
-      setLastClipboardContent(imageData);
-
-      await Clipboard.setImageAsync({
-        data: base64Data,
-        format: "png",
-      });
-    } catch (error) {
-      console.error("Error handling image message:", error);
-    }
+    await Clipboard.setStringAsync(text);
   };
 
   const copyToClipboard = async () => {
@@ -138,49 +76,23 @@ export default function Index() {
 
     await Clipboard.setStringAsync(inputText);
     if (socket) {
-      socket.emit("sendMessage", {
-        type: "text",
-        content: inputText,
-      });
+      socket.emit("sendMessage", { type: "text", content: inputText });
     }
-    handleTextMessage(inputText);
+    handleIncomingText(inputText);
     setInputText("");
   };
 
   const resetContent = async () => {
     setCopiedItem(null);
-    setImageUrl(null);
     setInputText("");
     setShowHistory(false);
     setLastClipboardContent(null);
     setCopiedHistory([]);
     try {
-      await Clipboard.setStringAsync(""); // Clears text clipboard
+      await Clipboard.setStringAsync("");
     } catch (err) {
       console.error("Clipboard clear error:", err);
     }
-  };
-
-  const renderHistoryItem = (item, index) => {
-    if (item.type === "image") {
-      return (
-        <View key={index} style={styles.historyImageContainer}>
-          <Image
-            source={{ uri: item.content }}
-            style={styles.historyImage}
-            resizeMode="contain"
-          />
-        </View>
-      );
-    }
-
-    return (
-      <View key={index} style={styles.historyTextContainer}>
-        <Text style={styles.historyItem} selectable>
-          {item.content}
-        </Text>
-      </View>
-    );
   };
 
   return (
@@ -210,7 +122,13 @@ export default function Index() {
         {showHistory && copiedHistory.length > 0 && (
           <View style={styles.historyContainer}>
             <Text style={styles.historyHeader}>Copy History:</Text>
-            {copiedHistory.map((item, index) => renderHistoryItem(item, index))}
+            {copiedHistory.map((item, index) => (
+              <View key={index} style={styles.historyTextContainer}>
+                <Text style={styles.historyItem} selectable>
+                  {item.content}
+                </Text>
+              </View>
+            ))}
           </View>
         )}
       </ScrollView>
@@ -261,16 +179,5 @@ const styles = StyleSheet.create({
   historyItem: {
     color: "#333",
     fontSize: 14,
-  },
-  historyImageContainer: {
-    width: "100%",
-    marginBottom: 12,
-    borderRadius: 8,
-    backgroundColor: "#f5f5f5",
-    padding: 8,
-  },
-  historyImage: {
-    width: "100%",
-    height: 150,
   },
 });
