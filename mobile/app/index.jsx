@@ -50,7 +50,6 @@ export default function Index() {
     if (!socket) return;
 
     const handler = (data) => {
-      console.log("Received from another device:", data);
       const text = typeof data === "string" ? data : data.content;
       if (text !== lastClipboardContent) {
         handleIncomingText(text);
